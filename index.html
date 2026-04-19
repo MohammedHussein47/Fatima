@@ -1344,12 +1344,14 @@
         updateSlideParallax();
       });
 
-      /* Soundtrack — autoplay from the start (with gesture fallback if the browser blocks it) */
+      /* Soundtrack — start as soon as the browser allows; keep retrying until it actually plays */
       const audio = document.getElementById("bg-music");
       const muteBtn = document.getElementById("mute-btn");
       const iconOn = document.getElementById("icon-sound-on");
       const iconOff = document.getElementById("icon-sound-off");
       let musicStarted = false;
+      let volumeRampStarted = false;
+      let playPending = false;
       let volTimer = null;
 
       function updateMuteIcon() {
@@ -1360,11 +1362,17 @@
       }
 
       muteBtn.addEventListener("click", () => {
+        if (!musicStarted) {
+          attemptSoundtrackPlay();
+          return;
+        }
         audio.muted = !audio.muted;
         updateMuteIcon();
       });
 
       function startVolumeRamp() {
+        if (volumeRampStarted) return;
+        volumeRampStarted = true;
         if (volTimer) {
           clearInterval(volTimer);
           volTimer = null;
@@ -1384,42 +1392,152 @@
         updateMuteIcon();
       }
 
-      function beginSoundtrackFromStart() {
+      function markPlaying() {
         if (musicStarted) return;
+        musicStarted = true;
+        startVolumeRamp();
+        detachUserActivationWiring();
+      }
+
+      let userActHandlers = [];
+
+      function detachUserActivationWiring() {
+        userActHandlers.forEach(({ type, fn, opts }) => {
+          document.removeEventListener(type, fn, opts);
+        });
+        userActHandlers = [];
+      }
+
+      function attachUserActivationWiring() {
+        if (musicStarted || userActHandlers.length) return;
+        const opts = { capture: true, passive: true };
+        const tryFromUser = () => {
+          if (musicStarted) return;
+          attemptSoundtrackPlay();
+        };
+        ["pointerdown", "touchstart", "touchend", "click", "wheel"].forEach((type) => {
+          document.addEventListener(type, tryFromUser, opts);
+          userActHandlers.push({ type, fn: tryFromUser, opts });
+        });
+      }
+
+      function attemptSoundtrackPlay() {
+        if (musicStarted) return;
+        if (playPending) return;
+        playPending = true;
         audio.currentTime = 0;
         audio.volume = 0;
-        const p = audio.play();
-        const onPlaying = () => {
-          musicStarted = true;
-          startVolumeRamp();
+
+        const onPlayingEvt = () => {
+          audio.removeEventListener("playing", onPlayingEvt);
+          if (musicStarted) {
+            playPending = false;
+            return;
+          }
+          playPending = false;
+          markPlaying();
         };
+        audio.addEventListener("playing", onPlayingEvt);
+
+        const p = audio.play();
         if (p && typeof p.then === "function") {
-          p.then(onPlaying).catch(() => {
-            armGestureResume();
+          p.then(() => {
+            if (musicStarted) {
+              playPending = false;
+              audio.removeEventListener("playing", onPlayingEvt);
+              return;
+            }
+            if (!audio.paused) {
+              audio.removeEventListener("playing", onPlayingEvt);
+              playPending = false;
+              markPlaying();
+            }
+          }).catch(() => {
+            audio.removeEventListener("playing", onPlayingEvt);
+            playPending = false;
+            try {
+              audio.load();
+            } catch (e) {}
+            attachUserActivationWiring();
           });
         } else {
-          onPlaying();
+          audio.removeEventListener("playing", onPlayingEvt);
+          playPending = false;
+          markPlaying();
         }
+
+        setTimeout(() => {
+          if (playPending && !musicStarted) {
+            audio.removeEventListener("playing", onPlayingEvt);
+            playPending = false;
+          }
+        }, 12000);
       }
 
-      function armGestureResume() {
-        const resume = () => {
-          if (musicStarted) return;
-          beginSoundtrackFromStart();
-        };
-        document.addEventListener("pointerdown", resume, { capture: true, once: true });
-        document.addEventListener(
-          "keydown",
-          (e) => {
-            if (e.key === "Enter" || e.key === " ") resume();
-          },
-          { capture: true, once: true }
-        );
+      function schedulePlayTries() {
+        attemptSoundtrackPlay();
+        queueMicrotask(() => attemptSoundtrackPlay());
+        setTimeout(() => attemptSoundtrackPlay(), 0);
+        setTimeout(() => attemptSoundtrackPlay(), 120);
+        setTimeout(() => attemptSoundtrackPlay(), 450);
+        setTimeout(() => attemptSoundtrackPlay(), 1200);
       }
 
-      window.addEventListener("load", () => {
-        beginSoundtrackFromStart();
-      });
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", schedulePlayTries, { once: true });
+      } else {
+        schedulePlayTries();
+      }
+
+      window.addEventListener("load", () => attemptSoundtrackPlay(), { passive: true });
+      window.addEventListener(
+        "pageshow",
+        (ev) => {
+          if (musicStarted && audio.paused) {
+            audio.play().catch(() => {});
+            return;
+          }
+          if (!musicStarted) attemptSoundtrackPlay();
+        },
+        { passive: true }
+      );
+
+      let lastMediaNudge = 0;
+      function nudgeFromMediaReady() {
+        const t = Date.now();
+        if (t - lastMediaNudge < 380) return;
+        lastMediaNudge = t;
+        if (!musicStarted) attemptSoundtrackPlay();
+      }
+
+      audio.addEventListener("loadeddata", nudgeFromMediaReady, { passive: true });
+      audio.addEventListener("canplay", nudgeFromMediaReady, { passive: true });
+      audio.addEventListener("canplaythrough", nudgeFromMediaReady, { passive: true });
+
+      document.addEventListener(
+        "visibilitychange",
+        () => {
+          if (document.hidden) return;
+          if (musicStarted && audio.paused) audio.play().catch(() => {});
+          if (!musicStarted) attemptSoundtrackPlay();
+        },
+        { passive: true }
+      );
+
+      window.addEventListener(
+        "focus",
+        () => {
+          if (musicStarted && audio.paused) audio.play().catch(() => {});
+          if (!musicStarted) attemptSoundtrackPlay();
+        },
+        { passive: true }
+      );
+
+      attachUserActivationWiring();
+
+      setTimeout(() => {
+        if (!musicStarted) muteBtn.classList.add("visible");
+      }, 900);
 
       /* Memory stars */
       const lines = [
