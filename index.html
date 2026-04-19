@@ -53,6 +53,13 @@
       position: relative;
     }
 
+    body:not(.experience-started) {
+      overflow: hidden;
+      height: 100vh;
+      height: 100dvh;
+      touch-action: none;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       html {
         scroll-behavior: auto;
@@ -83,6 +90,123 @@
       width: 100%;
       max-width: 100%;
       isolation: isolate;
+    }
+
+    body:not(.experience-started) #mute-btn {
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    /* Tap-to-begin overlay */
+    .start-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
+      background: rgba(3, 2, 10, 0.78);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      transition: opacity 0.85s ease, visibility 0.85s ease;
+    }
+
+    .start-overlay.start-overlay--gone {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .start-overlay__inner {
+      text-align: center;
+      max-width: 360px;
+    }
+
+    .start-kicker {
+      font-family: "Jost", sans-serif;
+      font-weight: 200;
+      font-size: 0.72rem;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--color-dim);
+      margin: 0 0 28px;
+    }
+
+    .start-btn {
+      font-family: "Cormorant Garamond", serif;
+      font-style: italic;
+      font-weight: 400;
+      font-size: clamp(1.35rem, 4.5vw, 1.85rem);
+      color: var(--color-void);
+      background: linear-gradient(135deg, #e8d4a8 0%, var(--color-glow) 45%, #a88b52 100%);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+      padding: 18px 40px;
+      min-height: 52px;
+      min-width: min(280px, 86vw);
+      cursor: pointer;
+      letter-spacing: 0.06em;
+      box-shadow:
+        0 0 0 1px rgba(201, 169, 110, 0.25),
+        0 12px 40px rgba(0, 0, 0, 0.45);
+      transition: transform 0.35s ease, box-shadow 0.35s ease, filter 0.35s ease;
+    }
+
+    .start-btn:hover,
+    .start-btn:focus-visible {
+      transform: translateY(-2px);
+      filter: brightness(1.06);
+      box-shadow:
+        0 0 0 1px rgba(201, 169, 110, 0.45),
+        0 16px 48px rgba(0, 0, 0, 0.5);
+    }
+
+    .start-btn:focus-visible {
+      outline: 2px solid var(--color-star);
+      outline-offset: 4px;
+    }
+
+    .start-sub {
+      font-family: "Jost", sans-serif;
+      font-weight: 200;
+      font-size: 0.68rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--color-dim);
+      margin: 24px 0 0;
+      line-height: 1.6;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .start-overlay {
+        transition-duration: 0.2s;
+      }
+      .start-btn {
+        transition: none;
+      }
+    }
+
+    /* Intro lines revealed only after tap (same motion as .reveal) */
+    .intro-reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 1.4s ease, transform 1.4s ease;
+      will-change: opacity, transform;
+    }
+
+    .intro-reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .intro-reveal {
+        transition-duration: 0.01ms !important;
+        transition-delay: 0ms !important;
+        transform: none;
+      }
     }
 
     .scene {
@@ -916,6 +1040,21 @@
 <body>
   <canvas id="stars" aria-hidden="true"></canvas>
 
+  <div
+    id="start-overlay"
+    class="start-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="start-btn"
+    aria-describedby="start-sub"
+  >
+    <div class="start-overlay__inner">
+      <p class="start-kicker">enter the story</p>
+      <button type="button" id="start-btn" class="start-btn">Tap here</button>
+      <p id="start-sub" class="start-sub">The first scene &amp; music begin together</p>
+    </div>
+  </div>
+
   <button type="button" id="mute-btn" aria-label="Toggle music mute" aria-pressed="false">
     <svg id="icon-sound-on" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M3 10v4h4l5 4V6L7 10H3zm13.5 3A4.5 4.5 0 0 0 14 9.03v6.92A4.5 4.5 0 0 0 16.5 13zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/>
@@ -930,9 +1069,9 @@
   <main class="content">
     <section id="s1-intro" class="scene">
       <div class="scene-inner">
-        <p class="intro-line1 reveal" data-delay="0">somewhere in the universe</p>
-        <p class="intro-line2 reveal" data-delay="800">something extraordinary happened</p>
-        <p class="intro-line3 reveal" data-delay="2400">it started with you</p>
+        <p class="intro-line1 intro-reveal" data-delay="0">somewhere in the universe</p>
+        <p class="intro-line2 intro-reveal" data-delay="800">something extraordinary happened</p>
+        <p class="intro-line3 intro-reveal" data-delay="2400">it started with you</p>
       </div>
     </section>
 
@@ -1219,11 +1358,8 @@
       requestAnimationFrame(loop);
       requestAnimationFrame(() => canvas.classList.add("stars-ready"));
 
-      /* Scroll hint */
+      /* Scroll hint (shown 4s after “Tap here” begins the experience) */
       const scrollHint = document.getElementById("scroll-hint");
-      setTimeout(() => {
-        scrollHint.classList.add("show");
-      }, 4000);
 
       window.addEventListener(
         "scroll",
@@ -1415,7 +1551,7 @@
           if (musicStarted) return;
           attemptSoundtrackPlay();
         };
-        ["pointerdown", "touchstart", "touchend", "click", "wheel"].forEach((type) => {
+        ["pointerdown", "touchstart", "click"].forEach((type) => {
           document.addEventListener(type, tryFromUser, opts);
           userActHandlers.push({ type, fn: tryFromUser, opts });
         });
@@ -1474,52 +1610,22 @@
         }, 12000);
       }
 
-      function schedulePlayTries() {
-        attemptSoundtrackPlay();
-        queueMicrotask(() => attemptSoundtrackPlay());
-        setTimeout(() => attemptSoundtrackPlay(), 0);
-        setTimeout(() => attemptSoundtrackPlay(), 120);
-        setTimeout(() => attemptSoundtrackPlay(), 450);
-        setTimeout(() => attemptSoundtrackPlay(), 1200);
-      }
-
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", schedulePlayTries, { once: true });
-      } else {
-        schedulePlayTries();
-      }
-
-      window.addEventListener("load", () => attemptSoundtrackPlay(), { passive: true });
       window.addEventListener(
         "pageshow",
-        (ev) => {
-          if (musicStarted && audio.paused) {
-            audio.play().catch(() => {});
-            return;
+        () => {
+          if (musicStarted && audio.paused) audio.play().catch(() => {});
+          if (!musicStarted && document.body.classList.contains("experience-started")) {
+            attemptSoundtrackPlay();
           }
-          if (!musicStarted) attemptSoundtrackPlay();
         },
         { passive: true }
       );
-
-      let lastMediaNudge = 0;
-      function nudgeFromMediaReady() {
-        const t = Date.now();
-        if (t - lastMediaNudge < 380) return;
-        lastMediaNudge = t;
-        if (!musicStarted) attemptSoundtrackPlay();
-      }
-
-      audio.addEventListener("loadeddata", nudgeFromMediaReady, { passive: true });
-      audio.addEventListener("canplay", nudgeFromMediaReady, { passive: true });
-      audio.addEventListener("canplaythrough", nudgeFromMediaReady, { passive: true });
 
       document.addEventListener(
         "visibilitychange",
         () => {
           if (document.hidden) return;
           if (musicStarted && audio.paused) audio.play().catch(() => {});
-          if (!musicStarted) attemptSoundtrackPlay();
         },
         { passive: true }
       );
@@ -1528,16 +1634,59 @@
         "focus",
         () => {
           if (musicStarted && audio.paused) audio.play().catch(() => {});
-          if (!musicStarted) attemptSoundtrackPlay();
         },
         { passive: true }
       );
 
-      attachUserActivationWiring();
+      /* Tap here — first slide + soundtrack (guaranteed user gesture) */
+      const startOverlay = document.getElementById("start-overlay");
+      const startBtn = document.getElementById("start-btn");
+      let experienceStarted = false;
 
-      setTimeout(() => {
-        if (!musicStarted) muteBtn.classList.add("visible");
-      }, 900);
+      function beginExperience() {
+        if (experienceStarted) return;
+        experienceStarted = true;
+        document.body.classList.add("experience-started");
+        startOverlay.classList.add("start-overlay--gone");
+        const removeMs = prefersReducedMotion ? 220 : 900;
+        setTimeout(() => {
+          startOverlay.remove();
+        }, removeMs);
+
+        if (prefersReducedMotion) {
+          document.querySelectorAll("#s1-intro .intro-reveal").forEach((el) => {
+            el.style.transitionDelay = "0ms";
+            el.classList.add("visible");
+          });
+        } else {
+          document.querySelectorAll("#s1-intro .intro-reveal").forEach((el) => {
+            const d = el.getAttribute("data-delay");
+            if (d != null) el.style.transitionDelay = d + "ms";
+          });
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              document.querySelectorAll("#s1-intro .intro-reveal").forEach((el) => {
+                el.classList.add("visible");
+              });
+            });
+          });
+        }
+
+        attemptSoundtrackPlay();
+        scheduleParallax();
+
+        setTimeout(() => {
+          scrollHint.classList.add("show");
+        }, 4000);
+      }
+
+      startBtn.addEventListener("click", beginExperience);
+      startBtn.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          beginExperience();
+        }
+      });
 
       /* Memory stars */
       const lines = [
